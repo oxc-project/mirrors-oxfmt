@@ -19,7 +19,7 @@ jobs:
       - run: pip install pre-commit-mirror-maker
       - run: git config --global user.name 'Github Actions'
       - run: git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
-      - run: pre-commit-mirror . --language=node --package-name=oxfmt --description="Linter for the JavaScript Oxidation Compiler" --types-or=javascript --types-or=jsx --types-or=ts --types-or=tsx
+      - run: pre-commit-mirror . --language=node --package-name=oxfmt --description="Formatter for the JavaScript Oxidation Compiler" --types-or=javascript --types-or=jsx --types-or=ts --types-or=tsx
       - run: |
           git remote set-url origin https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY
           git push origin HEAD:refs/heads/main --tags
