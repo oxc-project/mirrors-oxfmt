@@ -1,0 +1,10 @@
+-   id: oxfmt
+    name: oxfmt
+    description: 'Linter for the JavaScript Oxidation Compiler'
+    entry: oxfmt
+    language: node
+    'types_or': [javascript, jsx, ts, tsx]
+    args: []
+    require_serial: false
+    additional_dependencies: ["oxfmt@1.50.0"]
+    minimum_pre_commit_version: '2.9.2'
