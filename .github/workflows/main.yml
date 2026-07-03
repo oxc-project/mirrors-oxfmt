@@ -28,18 +28,18 @@ jobs:
           client-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
-      - name: Create mirror update PR
+      - name: Prepare mirror update
+        id: mirror
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          BRANCH: auto/update-mirror
         run: |
           if [ "$(git rev-list --count origin/main..HEAD)" = "0" ]; then
             echo "No mirror updates"
+            echo "updated=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           git remote set-url origin "https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY"
-          git push --force origin "HEAD:refs/heads/$BRANCH"
 
           for tag in $(git tag --list); do
             if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
@@ -49,18 +49,27 @@ jobs:
             fi
           done
 
-          pr_number="$(gh pr list --base main --head "$BRANCH" --state open --json number --jq '.[0].number // empty')"
-          if [ -z "$pr_number" ]; then
-            gh pr create \
-              --base main \
-              --head "$BRANCH" \
-              --title "chore: update pre-commit mirror" \
-              --body "Automated pre-commit mirror update triggered by a change to main."
-            pr_number="$(gh pr list --base main --head "$BRANCH" --state open --json number --jq '.[0].number')"
-          else
-            gh pr edit "$pr_number" \
-              --title "chore: update pre-commit mirror" \
-              --body "Automated pre-commit mirror update triggered by a change to main."
-          fi
+          git reset --mixed origin/main
+          echo "updated=true" >> "$GITHUB_OUTPUT"
 
-          gh pr merge --squash --auto --delete-branch "$pr_number"
+      - uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        if: steps.mirror.outputs.updated == 'true'
+        id: cpr
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          branch: auto/update-mirror
+          delete-branch: true
+          base: main
+          title: "chore: update pre-commit mirror"
+          commit-message: "chore: update pre-commit mirror"
+          body: Automated pre-commit mirror update triggered by a change to `main`.
+          add-paths: |
+            .pre-commit-hooks.yaml
+            .version
+            package.json
+
+      - if: steps.cpr.outputs.pull-request-number
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR_NUMBER: ${{ steps.cpr.outputs.pull-request-number }}
+        run: gh pr merge --squash --auto --delete-branch "$PR_NUMBER"
