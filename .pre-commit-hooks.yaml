@@ -1,9 +1,9 @@
 -   id: oxfmt
     name: oxfmt
     description: 'Formatter for the JavaScript Oxidation Compiler'
-    entry: oxfmt
+    entry: oxfmt --no-error-on-unmatched-pattern
     language: node
-    'types_or': [javascript, jsx, ts, tsx]
+    types: [text]
     args: []
     require_serial: false
     additional_dependencies: ["oxfmt@0.57.0"]
