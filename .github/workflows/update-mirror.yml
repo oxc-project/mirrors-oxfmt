@@ -1,4 +1,4 @@
-name: main
+name: Update mirror
 
 on:
   workflow_dispatch:
@@ -8,8 +8,8 @@ on:
 permissions: {}
 
 jobs:
-  build:
-    name: main
+  update-mirror:
+    name: Update mirror
     runs-on: ubuntu-latest
     permissions:
       contents: write # Push the auto/update-mirror branch and mirror tags.
