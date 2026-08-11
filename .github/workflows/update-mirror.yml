@@ -7,9 +7,14 @@ on:
 
 permissions: {}
 
+concurrency:
+  group: update-mirror-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   update-mirror:
     name: Update mirror
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: write # Push the auto/update-mirror branch and mirror tags.
@@ -17,10 +22,6 @@ jobs:
     steps:
       - uses: taiki-e/checkout-action@7d1e50e93dc4fb3bba58f85018fadf77898aee8b # v1.4.2
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-      - run: pip install pre-commit-mirror-maker
-      - run: git config --global user.name 'Github Actions'
-      - run: git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
-      - run: pre-commit-mirror . --language=node --package-name=oxfmt --description="Formatter for the JavaScript Oxidation Compiler" --types-or=javascript --types-or=jsx --types-or=ts --types-or=tsx
 
       - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         id: app-token
@@ -28,10 +29,34 @@ jobs:
           client-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
-      - name: Prepare mirror update
-        id: mirror
+      - name: Publish merged mirror tag
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          git remote set-url origin "https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY"
+
+          mirror_tag="v$(cat .version)"
+          tag_ref="refs/tags/$mirror_tag"
+
+          if git ls-remote --exit-code --tags origin "$tag_ref" >/dev/null; then
+            echo "Tag $mirror_tag already exists"
+          else
+            status=$?
+            if [ "$status" -ne 2 ]; then
+              echo "Failed to check for tag $mirror_tag"
+              exit "$status"
+            fi
+
+            git push origin "${GITHUB_SHA}:$tag_ref"
+          fi
+
+      - run: pip install pre-commit-mirror-maker
+      - run: git config --global user.name 'Github Actions'
+      - run: git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
+      - run: pre-commit-mirror . --language=node --package-name=oxfmt --description="Formatter for the JavaScript Oxidation Compiler" --types-or=javascript --types-or=jsx --types-or=ts --types-or=tsx
+
+      - name: Prepare mirror update
+        id: mirror
         run: |
           if [ "$(git rev-list --count origin/main..HEAD)" = "0" ]; then
             echo "No mirror updates"
@@ -39,13 +64,23 @@ jobs:
             exit 0
           fi
 
-          git remote set-url origin "https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY"
+          final_tag="v$(cat .version)"
 
-          for tag in $(git tag --list); do
-            if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
+          for tag in $(git tag --no-merged="$GITHUB_SHA"); do
+            tag_ref="refs/tags/$tag"
+
+            if [ "$tag" = "$final_tag" ]; then
+              echo "Deferring tag $tag until its mirror update is merged"
+            elif git ls-remote --exit-code --tags origin "$tag_ref" >/dev/null; then
               echo "Tag $tag already exists"
             else
-              git push origin "refs/tags/$tag"
+              status=$?
+              if [ "$status" -ne 2 ]; then
+                echo "Failed to check for tag $tag"
+                exit "$status"
+              fi
+
+              git push origin "$tag_ref"
             fi
           done
 
